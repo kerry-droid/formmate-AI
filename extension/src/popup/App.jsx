@@ -1,0 +1,60 @@
+import React, { useEffect, useState } from 'react';
+import { DEFAULT_API_URL, requestSuggestion } from '../utils/api';
+
+export default function App() {
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState('');
+  const [suggestion, setSuggestion] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL);
+  const [fields, setFields] = useState([]);
+
+  useEffect(() => {
+    chrome.storage?.local.get(['apiUrl'], (stored) => {
+      const savedApiUrl = stored.apiUrl;
+      setApiUrl(savedApiUrl && savedApiUrl !== 'http://localhost:5000' ? savedApiUrl : DEFAULT_API_URL);
+    });
+    chrome.tabs?.query({ active: true, currentWindow: true }, ([tab]) => {
+      if (!tab?.id) return;
+      chrome.tabs.sendMessage(tab.id, { type: 'DETECT_FIELDS' }, (detected) => {
+        if (!chrome.runtime.lastError && detected) {
+          setFields(detected);
+          if (detected[0]) {
+            setQuestion(detected[0].question || '');
+            setOptions((detected[0].options || []).join('\n'));
+          }
+        }
+      });
+    });
+  }, []);
+
+  async function analyze(event) {
+    event.preventDefault();
+    setLoading(true); setError(''); setSuggestion(null);
+    try {
+      setSuggestion(await requestSuggestion(question, options.split('\n').map((item) => item.trim()).filter(Boolean), apiUrl));
+    } catch (requestError) { setError(requestError.message); }
+    finally { setLoading(false); }
+  }
+
+  function fill(index, value) {
+    chrome.tabs?.query({ active: true, currentWindow: true }, ([tab]) => {
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: 'FILL_FIELD', index, value });
+    });
+  }
+
+  return <main>
+    <header><span className="mark">FM</span><div><p className="eyebrow">FORMMATE AI</p><h1>Review your next answer.</h1></div></header>
+    <p className="intro">A quiet second opinion for forms you are authorized to complete.</p>
+    <form onSubmit={analyze}>
+      <label>Question<textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Paste or select a question" required /></label>
+      <label>Options <span>(one per line)</span><textarea value={options} onChange={(event) => setOptions(event.target.value)} placeholder="Optional choices" rows="4" /></label>
+      <button type="submit" disabled={loading}>{loading ? 'Thinking...' : 'Suggest an answer'}</button>
+    </form>
+    {error && <p className="error" role="alert">{error}</p>}
+    {suggestion && <section className="result" aria-live="polite"><div className="result-top"><p className="eyebrow">SUGGESTION</p><strong>{suggestion.answer || 'No answer suggested'}</strong><span>{Math.round(suggestion.confidence * 100)}% confidence</span></div><p>{suggestion.explanation}</p><button className="secondary" onClick={() => fields[0] && fill(0, suggestion.answer)}>Fill first detected field</button></section>}
+    {fields.length > 0 && <p className="detected">{fields.length} supported field{fields.length === 1 ? '' : 's'} detected on this page.</p>}
+    <footer>Review before filling. FormMate never submits forms.</footer>
+  </main>;
+}

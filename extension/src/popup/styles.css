@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap');
+
+:root { font-family: Manrope, sans-serif; color: #182321; background: #f5f1e8; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 360px; }
+main { padding: 22px; background: radial-gradient(circle at 100% 0, #d4e8d9, transparent 45%), #f5f1e8; }
+header { display: flex; align-items: center; gap: 12px; }
+.mark { display: grid; place-items: center; width: 38px; height: 38px; color: #f5f1e8; background: #1c5a49; font: 500 12px 'DM Mono', monospace; letter-spacing: 0; }
+.eyebrow { margin: 0 0 5px; color: #5a766e; font: 500 10px 'DM Mono', monospace; letter-spacing: 0; }
+h1 { margin: 0; max-width: 260px; font-size: 21px; line-height: 1.12; letter-spacing: 0; }
+.intro { margin: 18px 0 20px; color: #61716c; font-size: 12px; line-height: 1.5; }
+form, .result { display: grid; gap: 13px; }
+label { display: grid; gap: 7px; color: #334d46; font-size: 11px; font-weight: 700; }
+label span { color: #82918c; font-weight: 400; }
+textarea { width: 100%; min-height: 60px; padding: 11px; border: 1px solid #c8d2ca; border-radius: 4px; resize: vertical; color: #182321; background: rgba(255,255,255,.65); font: 12px/1.45 Manrope, sans-serif; }
+textarea:focus { outline: 2px solid #9ac8b1; border-color: #1c5a49; }
+button { border: 0; border-radius: 3px; padding: 12px 14px; color: #fff; background: #1c5a49; font: 700 12px Manrope, sans-serif; cursor: pointer; }
+button:disabled { opacity: .55; cursor: wait; }
+.result { margin-top: 18px; padding: 15px; border-left: 3px solid #d97952; background: rgba(255,255,255,.72); }
+.result-top { display: grid; gap: 6px; }
+.result strong { font-size: 18px; }
+.result-top span { color: #6b7b75; font: 10px 'DM Mono', monospace; }
+.result p { margin: 0; color: #52645d; font-size: 11px; line-height: 1.5; }
+.secondary { padding: 9px; color: #1c5a49; background: #d4e8d9; }
+.error { margin: 12px 0 0; color: #9b3d2d; font-size: 11px; }
+.detected { color: #1c5a49; font-size: 11px; }
+footer { margin-top: 20px; color: #82918c; font: 10px 'DM Mono', monospace; line-height: 1.4; }
