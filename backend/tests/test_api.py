@@ -69,3 +69,29 @@ def test_answers_limits_concurrency_and_retries_transient_provider_errors(monkey
     assert [item["answer"] for item in response.json["answers"]] == [item["question"] for item in questions]
     assert state["peak"] <= 2
     assert all(attempts == 2 for attempts in state["attempts"].values())
+
+
+def test_answers_uses_provider_batch_once(monkeypatch):
+    import importlib
+    from types import SimpleNamespace
+
+    answer_module = importlib.import_module("app.routes.answer")
+
+    class BatchProvider:
+        calls = 0
+
+        def answer_many(self, questions):
+            self.calls += 1
+            return [SimpleNamespace(answer=item["question"], explanation="ok", confidence=1.0) for item in questions]
+
+    provider = BatchProvider()
+    monkeypatch.setattr(answer_module, "get_provider", lambda config: provider)
+    app = create_app({"TESTING": True, "AI_PROVIDER": "local", "AI_API_KEY": "", "CORS_ORIGINS": "*"})
+    questions = [{"question": f"Question {i}", "options": ["A", "B"]} for i in range(20)]
+
+    response = app.test_client().post("/api/answers", json={"questions": questions})
+
+    assert response.status_code == 200
+    assert provider.calls == 1
+    assert len(response.json["answers"]) == 20
+    assert [item["answer"] for item in response.json["answers"]] == [item["question"] for item in questions]

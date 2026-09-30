@@ -54,11 +54,26 @@ def answers():
             return jsonify(error=error), 400
 
     app_config = dict(current_app.config)
+    provider = get_provider(app_config)
+    answer_many = getattr(provider, "answer_many", None)
+    if callable(answer_many):
+        try:
+            results = answer_many(questions)
+            if len(results) != len(questions):
+                raise ValueError("AI provider returned an incomplete batch")
+        except Exception as error:
+            if any(marker in str(error) for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")):
+                return jsonify(error="The AI provider is temporarily busy. Please try again in a moment."), 503
+            return jsonify(error="The AI provider request failed. Check the provider, model, and API key."), 502
+        return jsonify(answers=[
+            {"answer": result.answer, "explanation": result.explanation, "confidence": result.confidence}
+            for result in results
+        ])
 
     def answer_one(question):
         for attempt in range(2):
             try:
-                result = get_provider(app_config).answer(question["question"].strip(), question.get("options", []))
+                result = provider.answer(question["question"].strip(), question.get("options", []))
                 return {"answer": result.answer, "explanation": result.explanation, "confidence": result.confidence}
             except Exception as error:
                 transient = any(marker in str(error) for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"))
