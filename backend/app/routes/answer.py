@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from flask import Blueprint, current_app, jsonify, request
 
 from ..services.ai_service import get_provider
@@ -42,18 +44,29 @@ def answers():
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict) or not isinstance(payload.get("questions"), list):
         return jsonify(error="questions must be a list."), 400
-    if len(payload["questions"]) > 50:
+    questions = payload["questions"]
+    if len(questions) > 50:
         return jsonify(error="A maximum of 50 questions is allowed."), 400
-    results = []
-    for question in payload["questions"]:
+    for question in questions:
         error = validate_question(question)
         if error:
             return jsonify(error=error), 400
-        try:
-            result = get_provider(current_app.config).answer(question["question"].strip(), question.get("options", []))
-        except Exception as error:
-            if any(marker in str(error) for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")):
-                return jsonify(error="The AI provider is temporarily busy. Please try again in a moment."), 503
-            return jsonify(error="The AI provider request failed. Check the provider, model, and API key."), 502
-        results.append({"answer": result.answer, "explanation": result.explanation, "confidence": result.confidence})
+
+    app_config = dict(current_app.config)
+
+    def answer_one(question):
+        result = get_provider(app_config).answer(question["question"].strip(), question.get("options", []))
+        return {"answer": result.answer, "explanation": result.explanation, "confidence": result.confidence}
+
+    try:
+        if not questions:
+            return jsonify(answers=[])
+        # Bound provider concurrency to keep larger forms responsive without
+        # sending an unbounded burst to the AI provider.
+        with ThreadPoolExecutor(max_workers=min(5, len(questions))) as executor:
+            results = list(executor.map(answer_one, questions))
+    except Exception as error:
+        if any(marker in str(error) for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")):
+            return jsonify(error="The AI provider is temporarily busy. Please try again in a moment."), 503
+        return jsonify(error="The AI provider request failed. Check the provider, model, and API key."), 502
     return jsonify(answers=results)

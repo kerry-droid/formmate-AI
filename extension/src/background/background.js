@@ -1,14 +1,39 @@
+const DEFAULT_API_URL = 'https://formmate-ai-ten.vercel.app';
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get(['apiUrl'], (stored) => {
     if (!stored.apiUrl || stored.apiUrl === 'http://localhost:5001' || stored.apiUrl === 'http://localhost:5000') {
-      chrome.storage.local.set({ apiUrl: 'https://formmate-ai-ten.vercel.app' });
+      chrome.storage.local.set({ apiUrl: DEFAULT_API_URL });
     }
   });
 });
 
-chrome.runtime.onMessage.addListener((message) => {
+async function answerDetectedFields(tabId, fields, requestId) {
+  const { apiUrl = DEFAULT_API_URL } = await chrome.storage.local.get('apiUrl');
+  const response = await fetch(`${apiUrl.replace(/\/$/, '')}/api/answers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ questions: fields.slice(0, 50).map(({ question, options }) => ({ question, options })) })
+  });
+  if (!response.ok) throw new Error(`Answer service returned ${response.status}`);
+  const payload = await response.json();
+  const answers = (payload.answers || []).map((result, index) => ({
+    index: fields[index].index,
+    answer: result.answer,
+    confidence: Number(result.confidence) || 0
+  }));
+  await chrome.tabs.sendMessage(tabId, { type: 'APPLY_AUTO_ANSWERS', requestId, answers });
+}
+
+chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type === 'FORM_DETECTED') {
-    chrome.action.setBadgeText({ text: message.count ? String(message.count) : '' });
+    const count = Number(message.count) || 0;
+    chrome.action.setBadgeText({ text: count ? String(count) : '', tabId: sender.tab?.id });
     chrome.action.setBadgeBackgroundColor({ color: '#d97952' });
+    if (sender.tab?.id && message.fields?.length) {
+      answerDetectedFields(sender.tab.id, message.fields, message.requestId).catch((error) => {
+        console.warn('FormMate could not auto-fill this page:', error.message);
+      });
+    }
   }
 });

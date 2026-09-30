@@ -1,9 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { DEFAULT_API_URL, requestSuggestion } from '../utils/api';
 
+function parsePastedQuestion(text) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return { question: '', options: [] };
+
+  const choiceMarker = /^(?:(?:[A-H]|\d+)[.)]|[-*•])\s+/i;
+  const questionLine = lines.findIndex((line) => line.includes('?'));
+  if (questionLine >= 0 && questionLine < lines.length - 1) {
+    return {
+      question: lines.slice(0, questionLine + 1).join(' '),
+      options: lines.slice(questionLine + 1).map((line) => line.replace(choiceMarker, '').trim()).filter(Boolean)
+    };
+  }
+
+  const firstChoice = lines.findIndex((line, index) => index > 0 && choiceMarker.test(line));
+  if (firstChoice > 0 && lines.length - firstChoice >= 2) {
+    return {
+      question: lines.slice(0, firstChoice).join(' '),
+      options: lines.slice(firstChoice).map((line) => line.replace(choiceMarker, '').trim()).filter(Boolean)
+    };
+  }
+  return { question: lines.join(' '), options: [] };
+}
+
 export default function App() {
-  const [question, setQuestion] = useState('');
-  const [options, setOptions] = useState('');
+  const [questionText, setQuestionText] = useState('');
   const [suggestion, setSuggestion] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,8 +47,8 @@ export default function App() {
         if (!chrome.runtime.lastError && detected) {
           setFields(detected);
           if (detected[0]) {
-            setQuestion(detected[0].question || '');
-            setOptions((detected[0].options || []).join('\n'));
+            const choices = detected[0].options || [];
+            setQuestionText([detected[0].question, ...choices].filter(Boolean).join('\n'));
           }
         }
       });
@@ -61,7 +83,9 @@ export default function App() {
     event.preventDefault();
     setLoading(true); setError(''); setSuggestion(null);
     try {
-      setSuggestion(await requestSuggestion(question, options.split('\n').map((item) => item.trim()).filter(Boolean), apiUrl));
+      const parsed = parsePastedQuestion(questionText);
+      if (!parsed.question) throw new Error('Paste a question to get a suggestion.');
+      setSuggestion(await requestSuggestion(parsed.question, parsed.options, apiUrl));
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }
   }
@@ -81,8 +105,8 @@ export default function App() {
       {apiUrlMessage && <p className="api-url-message" role="status">{apiUrlMessage}</p>}
     </form>
     <form onSubmit={analyze}>
-      <label>Question<textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Paste or select a question" required /></label>
-      <label>Options <span>(one per line)</span><textarea value={options} onChange={(event) => setOptions(event.target.value)} placeholder="Optional choices" rows="4" /></label>
+      <label>Question and choices<textarea value={questionText} onChange={(event) => setQuestionText(event.target.value)} placeholder={'Paste everything here, with each choice on a new line:\nWhat is the capital of Kenya?\nKampala\nUganda\nNairobi'} rows="7" required /></label>
+      <p className="detected">Paste the question first, then put each answer choice on its own line.</p>
       <button type="submit" disabled={loading}>{loading ? 'Thinking...' : 'Suggest an answer'}</button>
     </form>
     {error && <p className="error" role="alert">{error}</p>}

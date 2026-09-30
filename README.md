@@ -1,6 +1,6 @@
 # FormMate AI
 
-FormMate AI is a user-controlled Chrome extension and Flask backend for understanding supported online form questions. It detects labelled form fields, alerts the user on the page, pre-fills the extension with the first detected question, and shows an AI suggestion for review. It never submits a form.
+FormMate AI is a user-controlled Chrome extension and Flask backend for understanding supported online form questions. It detects unanswered labelled form fields on page load, requests AI answers in the background, and fills answers with at least 85% confidence. It never submits a form.
 
 ## Project layout
 
@@ -9,11 +9,11 @@ FormMate AI is a user-controlled Chrome extension and Flask backend for understa
 
 ## What it does
 
-- Detects labelled `input`, `textarea`, and `select` fields on regular webpages
+- Detects labelled text fields, dropdowns, and Google Forms multiple-choice questions
 - Shows an in-page notice and toolbar badge when fields are found
-- Loads the first detected question and choices into the popup
-- Supports multiple-choice and free-response questions
-- Returns an answer, explanation, and confidence for review
+- Requests answers for detected questions without opening the popup
+- Fills unanswered supported fields and matching multiple-choice options when AI confidence is at least 85%
+- Leaves uncertain or unmatched fields unchanged and shows an on-page status
 - Never submits forms automatically
 
 ## Backend
@@ -27,7 +27,7 @@ cp .env.example .env
 python run.py
 ```
 
-The API runs at `http://localhost:5001`. Port `5001` avoids conflicts with other local services. The `local` provider is a safe development fallback and does not claim an answer; configure Gemini or OpenAI for real AI responses.
+The API runs at `http://localhost:5001`. Port `5001` avoids conflicts with other local services. Batch requests can include up to 50 questions; the backend processes up to five AI requests at a time. The `local` provider is a safe development fallback and does not claim an answer; configure Gemini or OpenAI for real AI responses.
 
 ### Configure an AI provider
 
@@ -83,9 +83,9 @@ After changing extension code:
 3. Refresh the webpage containing the form.
 4. Open the FormMate toolbar popup.
 
-The page notice and toolbar badge indicate detected fields. The popup loads the first detected question and its options automatically. Chrome does not allow a webpage to open the extension popup silently, so the user must click the toolbar icon.
+The extension analyzes supported fields in the background after a page loads, without opening the popup. It fills only high-confidence answers (85% or higher), leaves uncertain fields blank, and shows a page notice with the result. It never submits the form; review the answers and submit manually. Questions and answer choices are sent to the configured backend to generate answers.
 
-The current detector supports labelled `input`, `textarea`, and `select` fields on regular webpages. It cannot inject into browser-internal pages such as `chrome://` URLs.
+The detector supports labelled text fields and dropdowns on regular webpages, plus multiple-choice radio questions on Google Forms. It cannot inject into browser-internal pages such as `chrome://` URLs. In the popup, paste a question followed by each answer choice on its own line into the single question box.
 
 If the popup says `Failed to fetch`, confirm Flask is running on port `5001`, rebuild the extension, click **Reload** in `chrome://extensions`, and refresh the form page.
 

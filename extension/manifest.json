@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "FormMate AI",
   "version": "0.1.0",
-  "description": "Review AI-assisted suggestions for supported form fields.",
+  "description": "Detect supported form fields and fill high-confidence AI answers automatically.",
   "action": {
     "default_title": "FormMate AI",
     "default_popup": "index.html"
@@ -13,10 +13,8 @@
     "scripting"
   ],
   "host_permissions": [
+    "https://formmate-ai-ten.vercel.app/*",
     "http://localhost:5001/*"
-  ],
-  "optional_host_permissions": [
-    "https://*/*"
   ],
   "background": {
     "service_worker": "src/background/background.js",
@@ -32,5 +30,8 @@
       ],
       "run_at": "document_idle"
     }
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
   ]
 }
