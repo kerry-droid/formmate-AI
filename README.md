@@ -85,7 +85,7 @@ After changing extension code:
 
 The extension analyzes supported fields in the background after a page loads, without opening the popup. It fills only high-confidence answers (85% or higher), leaves uncertain fields blank, and shows a page notice with the result. It never submits the form; review the answers and submit manually. Questions and answer choices are sent to the configured backend to generate answers.
 
-The detector supports labelled text fields and dropdowns on regular webpages, plus multiple-choice radio questions on Google Forms. It cannot inject into browser-internal pages such as `chrome://` URLs. In the popup, paste a question followed by each answer choice on its own line into the single question box.
+The detector supports labelled text fields and dropdowns on regular webpages, plus multiple-choice radio questions on Google Forms. It cannot inject into browser-internal pages such as `chrome://` URLs. In the popup, paste a question followed by each answer choice on its own line into the single question box. On a form page, press **Alt+Enter** or the Chrome shortcut **Ctrl+Shift+Y** to request answers for its remaining unanswered supported fields. You can change the Chrome shortcut at `chrome://extensions/shortcuts`.
 
 If the popup says `Failed to fetch`, confirm Flask is running on port `5001`, rebuild the extension, click **Reload** in `chrome://extensions`, and refresh the form page.
 

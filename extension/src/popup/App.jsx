@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DEFAULT_API_URL, requestSuggestion } from '../utils/api';
 
 function parsePastedQuestion(text) {
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !/^[-–—*]+$/.test(line));
   if (!lines.length) return { question: '', options: [] };
 
   const choiceMarker = /^(?:(?:[A-H]|\d+)[.)]|[-*•])\s+/i;
@@ -85,6 +85,10 @@ export default function App() {
     try {
       const parsed = parsePastedQuestion(questionText);
       if (!parsed.question) throw new Error('Paste a question to get a suggestion.');
+      const questionLines = questionText.split(/\r?\n/).filter((line) => /^\s*\d+[.)]\s+.+\?\s*$/.test(line));
+      if (questionLines.length > 1 || parsed.options.length > 100 || parsed.question.length > 4000) {
+        throw new Error('This box is for one question and its choices. To fill the whole form, close the popup and press Ctrl+Shift+Y (or Alt+Enter) on the form page.');
+      }
       setSuggestion(await requestSuggestion(parsed.question, parsed.options, apiUrl));
     } catch (requestError) { setError(requestError.message); }
     finally { setLoading(false); }

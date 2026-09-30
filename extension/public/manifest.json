@@ -33,5 +33,13 @@
   ],
   "optional_host_permissions": [
     "https://*/*"
-  ]
+  ],
+  "commands": {
+    "autofill-current-form": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y"
+      },
+      "description": "Find answers and fill the current form"
+    }
+  }
 }

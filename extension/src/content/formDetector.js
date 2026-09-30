@@ -115,15 +115,7 @@ function showStatus(message) {
 
 let lastSignature = '';
 let analyzeTimer;
-function analyzePage() {
-  if (isFormEditor()) {
-    lastSignature = 'google-forms-editor';
-    return;
-  }
-  const fields = detectFields();
-  const signature = fields.map(({ question, options }) => `${question}:${options.join('|')}`).join('\n');
-  if (signature === lastSignature) return;
-  lastSignature = signature;
+function requestAnswers(fields) {
   const requestId = `page-${++requestCounter}`;
   pendingFieldMaps.set(requestId, fields);
   chrome.runtime.sendMessage({
@@ -133,19 +125,58 @@ function analyzePage() {
   });
 }
 
+function analyzePage(force = false) {
+  if (isFormEditor()) {
+    lastSignature = 'google-forms-editor';
+    return;
+  }
+  const fields = detectFields();
+  const signature = fields.map(({ question, options }) => `${question}:${options.join('|')}`).join('\n');
+  if (!force && signature === lastSignature) return;
+  lastSignature = signature;
+  requestAnswers(fields);
+}
+
+function requestManualAnswers() {
+  if (isFormEditor()) return;
+  const fields = detectFields();
+  if (!fields.length) {
+    showStatus('No unanswered supported fields found on this page.');
+    return;
+  }
+  showStatus(`Looking for answers for ${fields.length} field${fields.length === 1 ? '' : 's'}...`);
+  analyzePage(true);
+}
+
 analyzePage();
+document.addEventListener('keydown', (event) => {
+  if (!event.altKey || event.key !== 'Enter' || event.repeat || isFormEditor()) return;
+  event.preventDefault();
+  event.stopPropagation();
+  requestManualAnswers();
+}, true);
 new MutationObserver(() => {
   clearTimeout(analyzeTimer);
   analyzeTimer = setTimeout(analyzePage, 250);
 }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'AUTOFILL_NOW') {
+    requestManualAnswers();
+    sendResponse({ ok: true });
+    return;
+  }
   if (message.type === 'DETECT_FIELDS') {
     sendResponse(detectFields().map(({ question, options }) => ({ question, options })));
     return;
   }
   if (message.type === 'FILL_FIELD') {
     sendResponse({ ok: applyAnswer(detectFields()[message.index], message.value) });
+    return;
+  }
+  if (message.type === 'ANSWER_REQUEST_FAILED') {
+    showStatus('Could not get answers. Check the backend connection and try again.');
+    sendResponse({ ok: true });
     return;
   }
   if (message.type === 'APPLY_AUTO_ANSWERS') {

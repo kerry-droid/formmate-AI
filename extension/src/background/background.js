@@ -33,7 +33,17 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     if (sender.tab?.id && message.fields?.length) {
       answerDetectedFields(sender.tab.id, message.fields, message.requestId).catch((error) => {
         console.warn('FormMate could not auto-fill this page:', error.message);
+        chrome.tabs.sendMessage(sender.tab.id, { type: 'ANSWER_REQUEST_FAILED', requestId: message.requestId }).catch(() => {});
       });
     }
   }
+});
+
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== 'autofill-current-form') return;
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, ([tab]) => {
+    if (!tab?.id) return;
+    chrome.tabs.sendMessage(tab.id, { type: 'AUTOFILL_NOW' }).catch(() => {});
+  });
 });
