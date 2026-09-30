@@ -80,6 +80,8 @@ function applyAnswer(target, answer) {
 }
 
 const pendingFieldMaps = new Map();
+const pendingSignatures = new Map();
+const activeSignatures = new Map();
 let requestCounter = 0;
 
 function fillAnswers(answers, requestId) {
@@ -117,6 +119,11 @@ let lastSignature = '';
 let analyzeTimer;
 let progressTimer;
 let pageObserver;
+let initialAnalysisStarted = false;
+
+function fieldsSignature(fields) {
+  return fields.map(({ question, options }) => `${question}:${options.join('|')}`).join('\n');
+}
 
 function extensionContextIsValid() {
   try {
@@ -138,8 +145,12 @@ function requestAnswers(fields) {
     stopAfterExtensionReload();
     return;
   }
+  const signature = fieldsSignature(fields);
+  if (activeSignatures.has(signature)) return;
   const requestId = `page-${++requestCounter}`;
   pendingFieldMaps.set(requestId, fields);
+  pendingSignatures.set(requestId, signature);
+  activeSignatures.set(signature, requestId);
   try {
     const request = chrome.runtime.sendMessage({
       type: 'FORM_DETECTED', requestId,
@@ -148,6 +159,8 @@ function requestAnswers(fields) {
     });
     request?.catch((error) => {
       pendingFieldMaps.delete(requestId);
+      pendingSignatures.delete(requestId);
+      if (activeSignatures.get(signature) === requestId) activeSignatures.delete(signature);
       if (!extensionContextIsValid() || error.message?.includes('Extension context invalidated')) {
         stopAfterExtensionReload();
       } else {
@@ -156,6 +169,8 @@ function requestAnswers(fields) {
     });
   } catch (error) {
     pendingFieldMaps.delete(requestId);
+    pendingSignatures.delete(requestId);
+    if (activeSignatures.get(signature) === requestId) activeSignatures.delete(signature);
     if (!extensionContextIsValid() || error.message?.includes('Extension context invalidated')) {
       stopAfterExtensionReload();
     } else {
@@ -169,8 +184,10 @@ function analyzePage(force = false) {
     lastSignature = 'google-forms-editor';
     return;
   }
+  if (!force && initialAnalysisStarted) return;
+  initialAnalysisStarted = true;
   const fields = detectFields();
-  const signature = fields.map(({ question, options }) => `${question}:${options.join('|')}`).join('\n');
+  const signature = fieldsSignature(fields);
   if (!force && signature === lastSignature) return;
   lastSignature = signature;
   requestAnswers(fields);
@@ -187,6 +204,7 @@ function requestManualAnswers() {
     showStatus('No unanswered supported fields found on this page.');
     return;
   }
+  initialAnalysisStarted = true;
   clearInterval(progressTimer);
   const startedAt = Date.now();
   showStatus(`Finding answers for ${fields.length} fields... 0s`);
@@ -202,7 +220,6 @@ function requestManualAnswers() {
   analyzePage(true);
 }
 
-analyzePage();
 document.addEventListener('keydown', (event) => {
   if (!event.altKey || event.key !== 'Enter' || event.repeat || isFormEditor()) return;
   event.preventDefault();
@@ -210,10 +227,12 @@ document.addEventListener('keydown', (event) => {
   requestManualAnswers();
 }, true);
 pageObserver = new MutationObserver(() => {
+  if (initialAnalysisStarted) return;
   clearTimeout(analyzeTimer);
-  analyzeTimer = setTimeout(analyzePage, 250);
+  analyzeTimer = setTimeout(analyzePage, 700);
 });
 pageObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+analyzeTimer = setTimeout(analyzePage, 700);
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'AUTOFILL_NOW') {
@@ -231,13 +250,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.type === 'ANSWER_REQUEST_FAILED') {
     clearInterval(progressTimer);
+    pendingFieldMaps.delete(message.requestId);
+    const signature = pendingSignatures.get(message.requestId);
+    pendingSignatures.delete(message.requestId);
+    if (activeSignatures.get(signature) === message.requestId) activeSignatures.delete(signature);
     showStatus(message.error ? `Could not get answers: ${message.error}` : 'Could not get answers. Check the backend connection and try again.');
     sendResponse({ ok: true });
     return;
   }
   if (message.type === 'APPLY_AUTO_ANSWERS') {
     clearInterval(progressTimer);
+    const signature = pendingSignatures.get(message.requestId);
+    pendingSignatures.delete(message.requestId);
+    if (activeSignatures.get(signature) === message.requestId) activeSignatures.delete(signature);
     const filled = fillAnswers(message.answers || [], message.requestId);
+    lastSignature = fieldsSignature(detectFields());
     showStatus(filled
       ? `Filled ${filled} field${filled === 1 ? '' : 's'} with high confidence. Review answers before submitting.`
       : 'Form fields detected. No high confidence answers were available to fill.');
