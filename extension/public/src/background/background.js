@@ -15,8 +15,8 @@ async function answerDetectedFields(tabId, fields, requestId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ questions: fields.slice(0, 50).map(({ question, options }) => ({ question, options })) })
   });
-  if (!response.ok) throw new Error(`Answer service returned ${response.status}`);
-  const payload = await response.json();
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.error || `Answer service returned ${response.status}`);
   const answers = (payload.answers || []).map((result, index) => ({
     index: fields[index].index,
     answer: result.answer,
@@ -33,7 +33,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     if (sender.tab?.id && message.fields?.length) {
       answerDetectedFields(sender.tab.id, message.fields, message.requestId).catch((error) => {
         console.warn('FormMate could not auto-fill this page:', error.message);
-        chrome.tabs.sendMessage(sender.tab.id, { type: 'ANSWER_REQUEST_FAILED', requestId: message.requestId }).catch(() => {});
+        chrome.tabs.sendMessage(sender.tab.id, { type: 'ANSWER_REQUEST_FAILED', requestId: message.requestId, error: error.message }).catch(() => {});
       });
     }
   }

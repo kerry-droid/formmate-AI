@@ -27,7 +27,7 @@ cp .env.example .env
 python run.py
 ```
 
-The API runs at `http://localhost:5001`. Port `5001` avoids conflicts with other local services. Batch requests can include up to 50 questions; the backend processes up to five AI requests at a time. The `local` provider is a safe development fallback and does not claim an answer; configure Gemini or OpenAI for real AI responses.
+The API runs at `http://localhost:5001`. Port `5001` avoids conflicts with other local services. Batch requests can include up to 50 questions; the backend processes up to two AI requests at a time and retries temporary provider throttling once per question. The `local` provider is a safe development fallback and does not claim an answer; configure Gemini or OpenAI for real AI responses.
 
 ### Configure an AI provider
 

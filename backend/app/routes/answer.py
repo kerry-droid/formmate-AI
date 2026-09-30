@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import time
 
 from flask import Blueprint, current_app, jsonify, request
 
@@ -55,15 +56,22 @@ def answers():
     app_config = dict(current_app.config)
 
     def answer_one(question):
-        result = get_provider(app_config).answer(question["question"].strip(), question.get("options", []))
-        return {"answer": result.answer, "explanation": result.explanation, "confidence": result.confidence}
+        for attempt in range(2):
+            try:
+                result = get_provider(app_config).answer(question["question"].strip(), question.get("options", []))
+                return {"answer": result.answer, "explanation": result.explanation, "confidence": result.confidence}
+            except Exception as error:
+                transient = any(marker in str(error) for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"))
+                if not transient or attempt == 1:
+                    raise
+                time.sleep(1.5)
 
     try:
         if not questions:
             return jsonify(answers=[])
-        # Bound provider concurrency to keep larger forms responsive without
-        # sending an unbounded burst to the AI provider.
-        with ThreadPoolExecutor(max_workers=min(5, len(questions))) as executor:
+        # Keep provider concurrency low; burst limits can reject larger quizzes.
+        # Temporary provider errors are retried once per question above.
+        with ThreadPoolExecutor(max_workers=min(2, len(questions))) as executor:
             results = list(executor.map(answer_one, questions))
     except Exception as error:
         if any(marker in str(error) for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")):

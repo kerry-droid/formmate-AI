@@ -175,7 +175,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
   if (message.type === 'ANSWER_REQUEST_FAILED') {
-    showStatus('Could not get answers. Check the backend connection and try again.');
+    showStatus(message.error ? `Could not get answers: ${message.error}` : 'Could not get answers. Check the backend connection and try again.');
     sendResponse({ ok: true });
     return;
   }
