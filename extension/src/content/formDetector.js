@@ -116,14 +116,52 @@ function showStatus(message) {
 let lastSignature = '';
 let analyzeTimer;
 let progressTimer;
+let pageObserver;
+
+function extensionContextIsValid() {
+  try {
+    return Boolean(chrome.runtime?.id);
+  } catch {
+    return false;
+  }
+}
+
+function stopAfterExtensionReload() {
+  clearInterval(progressTimer);
+  clearTimeout(analyzeTimer);
+  pageObserver?.disconnect();
+  pendingFieldMaps.clear();
+}
+
 function requestAnswers(fields) {
+  if (!extensionContextIsValid()) {
+    stopAfterExtensionReload();
+    return;
+  }
   const requestId = `page-${++requestCounter}`;
   pendingFieldMaps.set(requestId, fields);
-  chrome.runtime.sendMessage({
-    type: 'FORM_DETECTED', requestId,
-    count: fields.length,
-    fields: fields.map(({ question, options }, index) => ({ index, question, options }))
-  });
+  try {
+    const request = chrome.runtime.sendMessage({
+      type: 'FORM_DETECTED', requestId,
+      count: fields.length,
+      fields: fields.map(({ question, options }, index) => ({ index, question, options }))
+    });
+    request?.catch((error) => {
+      pendingFieldMaps.delete(requestId);
+      if (!extensionContextIsValid() || error.message?.includes('Extension context invalidated')) {
+        stopAfterExtensionReload();
+      } else {
+        showStatus(`Could not contact FormMate: ${error.message}`);
+      }
+    });
+  } catch (error) {
+    pendingFieldMaps.delete(requestId);
+    if (!extensionContextIsValid() || error.message?.includes('Extension context invalidated')) {
+      stopAfterExtensionReload();
+    } else {
+      showStatus(`Could not contact FormMate: ${error.message}`);
+    }
+  }
 }
 
 function analyzePage(force = false) {
@@ -140,6 +178,10 @@ function analyzePage(force = false) {
 
 function requestManualAnswers() {
   if (isFormEditor()) return;
+  if (!extensionContextIsValid()) {
+    stopAfterExtensionReload();
+    return;
+  }
   const fields = detectFields();
   if (!fields.length) {
     showStatus('No unanswered supported fields found on this page.');
@@ -167,10 +209,11 @@ document.addEventListener('keydown', (event) => {
   event.stopPropagation();
   requestManualAnswers();
 }, true);
-new MutationObserver(() => {
+pageObserver = new MutationObserver(() => {
   clearTimeout(analyzeTimer);
   analyzeTimer = setTimeout(analyzePage, 250);
-}).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+});
+pageObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'AUTOFILL_NOW') {
