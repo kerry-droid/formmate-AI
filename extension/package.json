@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "node scripts/sync-extension-assets.js && vite build"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
