@@ -115,6 +115,7 @@ function showStatus(message) {
 
 let lastSignature = '';
 let analyzeTimer;
+let progressTimer;
 function requestAnswers(fields) {
   const requestId = `page-${++requestCounter}`;
   pendingFieldMaps.set(requestId, fields);
@@ -144,7 +145,18 @@ function requestManualAnswers() {
     showStatus('No unanswered supported fields found on this page.');
     return;
   }
-  showStatus(`Looking for answers for ${fields.length} field${fields.length === 1 ? '' : 's'}...`);
+  clearInterval(progressTimer);
+  const startedAt = Date.now();
+  showStatus(`Finding answers for ${fields.length} fields... 0s`);
+  progressTimer = setInterval(() => {
+    const status = document.querySelector('#formmate-detection-banner span');
+    if (!status) {
+      clearInterval(progressTimer);
+      return;
+    }
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    status.textContent = `Finding answers for ${fields.length} fields... ${seconds}s`;
+  }, 1000);
   analyzePage(true);
 }
 
@@ -175,11 +187,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
   if (message.type === 'ANSWER_REQUEST_FAILED') {
+    clearInterval(progressTimer);
     showStatus(message.error ? `Could not get answers: ${message.error}` : 'Could not get answers. Check the backend connection and try again.');
     sendResponse({ ok: true });
     return;
   }
   if (message.type === 'APPLY_AUTO_ANSWERS') {
+    clearInterval(progressTimer);
     const filled = fillAnswers(message.answers || [], message.requestId);
     showStatus(filled
       ? `Filled ${filled} field${filled === 1 ? '' : 's'} with high confidence. Review answers before submitting.`
