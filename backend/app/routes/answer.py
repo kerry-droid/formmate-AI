@@ -69,10 +69,9 @@ def answers():
     try:
         if not questions:
             return jsonify(answers=[])
-        # Three parallel requests reduce wait time for long quizzes while
-        # staying below the burst level that previously caused provider throttling.
+        # Keep provider concurrency low; higher bursts can throttle large quizzes.
         # Temporary provider errors are retried once per question above.
-        with ThreadPoolExecutor(max_workers=min(3, len(questions))) as executor:
+        with ThreadPoolExecutor(max_workers=min(2, len(questions))) as executor:
             results = list(executor.map(answer_one, questions))
     except Exception as error:
         if any(marker in str(error) for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")):
