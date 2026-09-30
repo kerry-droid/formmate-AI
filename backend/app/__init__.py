@@ -25,6 +25,10 @@ def create_app(test_config=None):
     CORS(app, origins="*" if origins == "*" else [item.strip() for item in origins.split(",")])
     app.register_blueprint(answer_bp, url_prefix="/api")
 
+    @app.get("/")
+    def index():
+        return jsonify(status="ok", service="FormMate AI API", health="/health", answer_endpoint="POST /api/answer")
+
     @app.get("/health")
     def health():
         return jsonify(status="ok")

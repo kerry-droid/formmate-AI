@@ -3,9 +3,34 @@
   "name": "FormMate AI",
   "version": "0.1.0",
   "description": "Review AI-assisted suggestions for supported form fields.",
-  "action": { "default_title": "FormMate AI", "default_popup": "index.html" },
-  "permissions": ["activeTab", "storage", "scripting"],
-  "host_permissions": ["http://localhost:5001/*"],
-  "background": { "service_worker": "src/background/background.js", "type": "module" },
-  "content_scripts": [{ "matches": ["<all_urls>"], "js": ["src/content/formDetector.js"], "run_at": "document_idle" }]
+  "action": {
+    "default_title": "FormMate AI",
+    "default_popup": "index.html"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:5001/*"
+  ],
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/formDetector.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ]
 }
