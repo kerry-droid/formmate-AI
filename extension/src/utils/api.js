@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'http://localhost:5001';
+const DEFAULT_API_URL = 'https://formmate-ai-ten.vercel.app';
 
 export async function requestSuggestion(question, options, apiUrl = DEFAULT_API_URL) {
   const endpoint = `${apiUrl.replace(/\/$/, '')}/api/answer`;

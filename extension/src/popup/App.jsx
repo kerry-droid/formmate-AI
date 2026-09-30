@@ -15,7 +15,7 @@ export default function App() {
   useEffect(() => {
     chrome.storage?.local.get(['apiUrl'], (stored) => {
       const savedApiUrl = stored.apiUrl;
-      const url = savedApiUrl && savedApiUrl !== 'http://localhost:5000' ? savedApiUrl : DEFAULT_API_URL;
+      const url = savedApiUrl && !['http://localhost:5000', 'http://localhost:5001'].includes(savedApiUrl) ? savedApiUrl : DEFAULT_API_URL;
       setApiUrl(url);
       setApiUrlDraft(url);
     });
