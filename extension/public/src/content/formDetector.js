@@ -120,6 +120,7 @@ let analyzeTimer;
 let progressTimer;
 let pageObserver;
 let initialAnalysisStarted = false;
+const silentRequests = new Set();
 
 function fieldsSignature(fields) {
   return fields.map(({ question, options }) => `${question}:${options.join('|')}`).join('\n');
@@ -140,14 +141,18 @@ function stopAfterExtensionReload() {
   pendingFieldMaps.clear();
 }
 
-function requestAnswers(fields) {
+function requestAnswers(fields, { silent = false } = {}) {
   if (!extensionContextIsValid()) {
     stopAfterExtensionReload();
     return;
   }
   const signature = fieldsSignature(fields);
-  if (activeSignatures.has(signature)) return;
+  if (activeSignatures.has(signature)) {
+    if (silent) silentRequests.add(activeSignatures.get(signature));
+    return;
+  }
   const requestId = `page-${++requestCounter}`;
+  if (silent) silentRequests.add(requestId);
   pendingFieldMaps.set(requestId, fields);
   pendingSignatures.set(requestId, signature);
   activeSignatures.set(signature, requestId);
@@ -163,7 +168,7 @@ function requestAnswers(fields) {
       if (activeSignatures.get(signature) === requestId) activeSignatures.delete(signature);
       if (!extensionContextIsValid() || error.message?.includes('Extension context invalidated')) {
         stopAfterExtensionReload();
-      } else {
+      } else if (!silent) {
         showStatus(`Could not contact FormMate: ${error.message}`);
       }
     });
@@ -173,7 +178,7 @@ function requestAnswers(fields) {
     if (activeSignatures.get(signature) === requestId) activeSignatures.delete(signature);
     if (!extensionContextIsValid() || error.message?.includes('Extension context invalidated')) {
       stopAfterExtensionReload();
-    } else {
+    } else if (!silent) {
       showStatus(`Could not contact FormMate: ${error.message}`);
     }
   }
@@ -200,24 +205,11 @@ function requestManualAnswers() {
     return;
   }
   const fields = detectFields();
-  if (!fields.length) {
-    showStatus('No unanswered supported fields found on this page.');
-    return;
-  }
+  if (!fields.length) return;
   initialAnalysisStarted = true;
   clearInterval(progressTimer);
-  const startedAt = Date.now();
-  showStatus(`Finding answers for ${fields.length} fields... 0s`);
-  progressTimer = setInterval(() => {
-    const status = document.querySelector('#formmate-detection-banner span');
-    if (!status) {
-      clearInterval(progressTimer);
-      return;
-    }
-    const seconds = Math.floor((Date.now() - startedAt) / 1000);
-    status.textContent = `Finding answers for ${fields.length} fields... ${seconds}s`;
-  }, 1000);
-  analyzePage(true);
+  lastSignature = fieldsSignature(fields);
+  requestAnswers(fields, { silent: true });
 }
 
 document.addEventListener('keydown', (event) => {
@@ -250,24 +242,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.type === 'ANSWER_REQUEST_FAILED') {
     clearInterval(progressTimer);
+    const silent = silentRequests.delete(message.requestId);
     pendingFieldMaps.delete(message.requestId);
     const signature = pendingSignatures.get(message.requestId);
     pendingSignatures.delete(message.requestId);
     if (activeSignatures.get(signature) === message.requestId) activeSignatures.delete(signature);
-    showStatus(message.error ? `Could not get answers: ${message.error}` : 'Could not get answers. Check the backend connection and try again.');
+    if (!silent) showStatus(message.error ? `Could not get answers: ${message.error}` : 'Could not get answers. Check the backend connection and try again.');
     sendResponse({ ok: true });
     return;
   }
   if (message.type === 'APPLY_AUTO_ANSWERS') {
     clearInterval(progressTimer);
+    const silent = silentRequests.delete(message.requestId);
     const signature = pendingSignatures.get(message.requestId);
     pendingSignatures.delete(message.requestId);
     if (activeSignatures.get(signature) === message.requestId) activeSignatures.delete(signature);
     const filled = fillAnswers(message.answers || [], message.requestId);
     lastSignature = fieldsSignature(detectFields());
-    showStatus(filled
-      ? `Filled ${filled} field${filled === 1 ? '' : 's'} with high confidence. Review answers before submitting.`
-      : 'Form fields detected. No high confidence answers were available to fill.');
+    if (!silent) {
+      showStatus(filled
+        ? `Filled ${filled} field${filled === 1 ? '' : 's'} with high confidence. Review answers before submitting.`
+        : 'Form fields detected. No high confidence answers were available to fill.');
+    }
     sendResponse({ filled });
   }
 });
