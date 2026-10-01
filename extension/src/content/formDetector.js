@@ -259,11 +259,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (activeSignatures.get(signature) === message.requestId) activeSignatures.delete(signature);
     const filled = fillAnswers(message.answers || [], message.requestId);
     lastSignature = fieldsSignature(detectFields());
-    if (!silent) {
-      showStatus(filled
-        ? `Filled ${filled} field${filled === 1 ? '' : 's'} with high confidence. Review answers before submitting.`
-        : 'Form fields detected. No high confidence answers were available to fill.');
-    }
     sendResponse({ filled });
   }
 });
